@@ -3,8 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
+
 
 typedef struct {
     FILE* file;
@@ -77,8 +76,6 @@ int quickv_set(quickv* db, const char* key, const char *value) {
     fwrite(value, 1, strlen(value), file);
     fwrite(&null_byte, 1, 1, file);
 
-    fflush(file);
-
     return 0;
 
 }
@@ -128,112 +125,8 @@ const char* quickv_get(quickv* db, const char* key) {
 return NULL;
 }
 
-/*int main() {
-    quickv* db = opendb("");
+int main() {
+    quickv* db = opendb("test.db");
     //quickv_set(db, "key", "value");
     printf("%s\n", quickv_get(db, "key"));
-}*/
-
-typedef struct {
-    PyObject_HEAD
-    quickv* db;
-} PyQuicKVObject;
-
-static void PyQuicKV_dealloc(PyQuicKVObject* self) {
-    if (self->db) {
-        closedb(self->db);
-        self->db = NULL;
-    }
-    Py_TYPE(self)->tp_free((PyObject*)self);
-}
-
-static int PyQuicKV_init(PyQuicKVObject* self, PyObject* args, PyObject* kwds) {
-    const char* filename;
-    if (!PyArg_ParseTuple(args, "s", &filename))
-        return -1;
-
-    self->db = opendb(filename);
-    if (!self->db) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to open database");
-        return -1;
-    }
-
-    return 0;
-}
-
-static PyObject* PyQuicKV_set(PyQuicKVObject* self, PyObject* args) {
-    const char* key;
-    const char* value;
-    if (!PyArg_ParseTuple(args, "ss", &key, &value))
-        return NULL;
-
-    int res = quickv_set(self->db, key, value);
-    if (res != 0) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to set key");
-        return NULL;
-    }
-
-    Py_RETURN_NONE;
-}
-
-static PyObject* PyQuicKV_get(PyQuicKVObject* self, PyObject* args) {
-    const char* key;
-    if (!PyArg_ParseTuple(args, "s", &key))
-        return NULL;
-
-    const char* value = quickv_get(self->db, key);
-    if (!value) {
-        Py_RETURN_NONE;
-    }
-
-    return Py_BuildValue("s", value);
-}
-
-static PyMethodDef PyQuicKV_methods[] = {
-    {"set", (PyCFunction)PyQuicKV_set, METH_VARARGS, "Set a key-value pair"},
-    {"get", (PyCFunction)PyQuicKV_get, METH_VARARGS, "Get value by key"},
-    {NULL, NULL, 0, NULL}
-};
-
-static PyTypeObject PyQuicKVType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "quickv.DB",
-    .tp_doc = "QuicKV database object",
-    .tp_basicsize = sizeof(PyQuicKVObject),
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_new = PyType_GenericNew,
-    .tp_init = (initproc)PyQuicKV_init,
-    .tp_dealloc = (destructor)PyQuicKV_dealloc,
-    .tp_methods = PyQuicKV_methods,
-};
-
-static PyMethodDef quickv_methods[] = {
-    {NULL, NULL, 0, NULL}
-};
-
-static struct PyModuleDef quickvmodule = {
-    PyModuleDef_HEAD_INIT,
-    "quickv",
-    "QuicKV key-value store module",
-    -1,
-    quickv_methods
-};
-
-PyMODINIT_FUNC PyInit_quickv(void) {
-    PyObject* m;
-    if (PyType_Ready(&PyQuicKVType) < 0)
-        return NULL;
-
-    m = PyModule_Create(&quickvmodule);
-    if (m == NULL)
-        return NULL;
-
-    Py_INCREF(&PyQuicKVType);
-    if (PyModule_AddObject(m, "DB", (PyObject*)&PyQuicKVType) < 0) {
-        Py_DECREF(&PyQuicKVType);
-        Py_DECREF(m);
-        return NULL;
-    }
-
-    return m;
 }
